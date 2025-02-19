@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>PC Temperature & Performance Dashboard</title>
+  <!-- Plotly JS -->
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <!-- Bootstrap CSS (CDN) -->
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  />
+  <style>
+    #graph {
+      width: 100%;
+      height: 400px;
+    }
+    .result-box {
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body class="bg-light">
+
+  <div class="container my-4">
+    <h1 class="mb-4">PC Temperature &amp; Performance Dashboard</h1>
+
+    <div class="row">
+      <!-- Left Column: Simulation Parameters & Predictions -->
+      <div class="col-md-4">
+        <!-- Simulation Parameters Card -->
+        <div class="card mb-4">
+          <div class="card-header">
+            Simulation Parameters
+          </div>
+          <div class="card-body">
+            <form id="paramsForm" class="row g-3">
+              <div class="col-12">
+                <label for="cpu_temp_min" class="form-label">CPU Temp Min</label>
+                <input
+                  type="number"
+                  class="form-control"
+                  name="cpu_temp_min"
+                  step="0.1"
+                  value="{{ params.cpu_temp_min }}"
+                  id="cpu_temp_min"
+                />
+              </div>
+              <div class="col-12">
+                <label for="cpu_temp_max" class="form-label">CPU Temp Max</label>
+                <input
+                  type="number"
+                  class="form-control"
+                  name="cpu_temp_max"
+                  step="0.1"
+                  value="{{ params.cpu_temp_max }}"
+                  id="cpu_temp_max"
+                />
+              </div>
+              <div class="col-12">
+                <label for="gpu_temp_min" class="form-label">GPU Temp Min</label>
+                <input
+                  type="number"
+                  class="form-control"
+                  name="gpu_temp_min"
+                  step="0.1"
+                  value="{{ params.gpu_temp_min }}"
+                  id="gpu_temp_min"
+                />
+              </div>
+              <div class="col-12">
+                <label for="gpu_temp_max" class="form-label">GPU Temp Max</label>
+                <input
+                  type="number"
+                  class="form-control"
+                  name="gpu_temp_max"
+                  step="0.1"
+                  value="{{ params.gpu_temp_max }}"
+                  id="gpu_temp_max"
+                />
+              </div>
+              <div class="col-12">
+                <label for="noise_level" class="form-label">Noise Level</label>
+                <input
+                  type="number"
+                  class="form-control"
+                  name="noise_level"
+                  step="0.1"
+                  value="{{ params.noise_level }}"
+                  id="noise_level"
+                />
+              </div>
+              <div class="col-12">
+                <label for="update_interval" class="form-label">Update Interval (sec)</label>
+                <input
+                  type="number"
+                  class="form-control"
+                  name="update_interval"
+                  step="0.1"
+                  value="{{ params.update_interval }}"
+                  id="update_interval"
+                />
+              </div>
+              <div class="col-12 text-end">
+                <button type="submit" class="btn btn-primary">Update Parameters</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Deep Learning Predictions Card -->
+        <div class="card mb-4">
+          <div class="card-header">
+            Deep Learning Predictions
+          </div>
+          <div class="card-body">
+            <button id="forecastBtn" class="btn btn-warning w-100 mb-3">
+              Predict Performance Loss %
+            </button>
+            <div id="forecastResult" class="alert alert-secondary result-box"></div>
+
+            <button id="anomalyBtn" class="btn btn-danger w-100 mt-3">
+              Predict Anomaly
+            </button>
+            <div id="anomalyResult" class="alert alert-secondary result-box"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Real-Time Graph -->
+      <div class="col-md-8">
+        <div class="card">
+          <div class="card-header">
+            Real-Time Data
+          </div>
+          <div class="card-body">
+            <div id="graph"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS (CDN) + Popper (required for some Bootstrap components) -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+
+  <script>
+    /* eslint-disable */
+    // Handle simulation parameter updates.
+    document.getElementById('paramsForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const formData = new FormData(this);
+      const data = {};
+      formData.forEach((value, key) => {
+        data[key] = parseFloat(value);
+      });
+
+      fetch('/update_params', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+      })
+      .then(response => response.json())
+      .then(result => {
+        console.log('Updated:', result);
+        // Reload the page after updating parameters
+        window.location.reload();
+      })
+      .catch(err => console.error('Error updating params:', err));
+    });
+
+    // Initialize Plotly traces
+    var cpuTrace = { x: [], y: [], mode: 'lines', name: 'CPU Temp' };
+    var gpuTrace = { x: [], y: [], mode: 'lines', name: 'GPU Temp' };
+
+    var chartData = [cpuTrace, gpuTrace];
+    var layout = {
+      title: 'Real-Time PC Temperature Data',
+      xaxis: { title: 'Time' },
+      yaxis: { title: 'Temperature (°C)' }
+    };
+
+    Plotly.newPlot('graph', chartData, layout);
+
+    // Update chart with new simulation data
+    async function updateChart() {
+      const response = await fetch('/simulate');
+      const simData = await response.json();
+      const timestamp = new Date(simData.timestamp * 1000);
+
+      Plotly.extendTraces('graph', {
+        x: [[timestamp], [timestamp]],
+        y: [[simData.cpu_temp], [simData.gpu_temp]]
+      }, [0, 1]);
+
+      // Optionally trim data
+      const maxPoints = 100;
+      const update = {
+        xaxis: { range: [new Date(timestamp - maxPoints * 1000), timestamp] }
+      };
+      Plotly.relayout('graph', update);
+    }
+
+    const updateInterval = {{ params.update_interval | tojson }};
+    setInterval(updateChart, updateInterval * 1000);
+
+    // Predict Performance Loss
+    document.getElementById('forecastBtn').addEventListener('click', async () => {
+      const response = await fetch('/predict_forecast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const result = await response.json();
+      document.getElementById('forecastResult').innerText =
+        '% Performance Loss: ' + result.forecast.toFixed(2);
+    });
+
+    // Predict Anomaly
+    document.getElementById('anomalyBtn').addEventListener('click', async () => {
+      const response = await fetch('/predict_anomaly', { method: 'POST' });
+      const result = await response.json();
+      document.getElementById('anomalyResult').innerText =
+        'Anomaly Status: ' + result.anomaly;
+    });
+  </script>
+</body>
+</html>
