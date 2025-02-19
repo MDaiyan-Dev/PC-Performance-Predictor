@@ -69,7 +69,8 @@ This project started as a proof-of-concept and has grown into a full-fledged das
 3. **Install Dependencies:**
 
    ```bash
-   pip install -r requirements.txt
+   pip install Flask
+   pip install Tensorflow
    ```
 
 4. **(Optional) Docker:**  
